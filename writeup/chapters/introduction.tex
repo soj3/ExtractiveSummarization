@@ -1,0 +1,87 @@
+\documentclass[../writeup.tex]{subfiles}
+
+\begin{document}
+\chapter{Introduction}\label{chapter:intro}
+% cite stuff using \autocite{label}, not \cite, for example
+% \autocite*{brief-summarization-survey}
+
+% label sections with \label{ch:sec:sectionName}
+% and figures with \label{ch:fig:figName},
+% equations with \label{ch:eq:eqName}, etc.
+% reference labeled stuff with \ref{ch:sec:sectionLabel} to automatically update numbers
+
+% to display something from the images/ directory
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=0.75\textwidth]{image.file}
+%   \caption{your caption here}
+%   \label{ch:fig:labelName}
+% \end{figure}
+
+\section{Summarization Techniques}\label{intro:sec:extract-sum}
+\subsection{Abstractive vs. Extractive}\label{intro:sec:abstractve-vs-extractive}
+Automatic text summarization techniques can be broadly categorized into abstractive and
+extractive summarization. \textit{Abstraction} attempts to digest ideas, topics, and semantic information
+in order to produce new language to express these ideas. \textit{Extraction} attempts to
+assess the importance of existing sentences to the original text, and to reproduce these sentences in an order
+that can characterize the content and ideas of a document or set of documents as a
+whole \autocite*[]{text-summarization-techniques}.
+
+Currently, abstractive techniques are still relatively premature; they struggle to combine
+accurate semantic inference and meaningful syntactic generation \autocite*[]{text-summarization-techniques}.
+The current state-of-the-art primarily includes neural techniques based on robust
+language models to assist with language generation from an abstract representation,
+but many other avenues of research have yet to be fully explored.
+
+Extractive summarization allows us to more carefully examine lexical and semantic relationships between sentences and
+between documents, while taking advantage of human fluency when producing summarized output to
+cherry pick the most relevant subsets of existing documents to produce a shorter document
+with the same overall meaning. Moreover, the methods by which we can
+assess these \say{most relevant subsets} form a rich area of literature, encompassing
+a wide range of unsupervised statistical approaches.
+
+For this reason, the remainder examine several groups of these approaches to assess their relative
+strengths to solve problems in this domain.
+
+\section{Extractive Summarization}\label{intro:sec:extractive-summarization-categories}
+We can group nearly all extractive summarization techniques into two primary approaches. These approaches
+are most generally characterized by:
+\begin{itemize}
+    \item Intermediate Representation, which encompasses the manner in which automatic summarizers form an internal representation of a document
+    \item Scoring Method, which details how we can transition from intermediate representation to lexical sentence salience
+    \item Sentence Selection, which simply chooses the optimal set of sentences to produce the best summary according to a model
+\end{itemize}
+
+\subsection{Topic Representation}\label{intro:sec:topic-representation}
+
+Topic representations attempts to find and identify topics that are within a document. These representation technique varies in model sophistication.
+Some of the earliest models focused on determining the most important words within a document and labelling these as \say{topic signatures}.
+More advanced models spanning into frequency-driven approaches look at the TF-IDF scores and word probabilities. This is discussed in greater detail in Chapter \ref{chapter:sam}.
+
+Another common strategy in extractvive summarization is pulling ideas from linear algebra decompositions to calculate a latent variable between words and phrases. This latent variable is used to represent the topics. 
+This technique is called latent semantic analysis (LSA). It is further discussed and implemented in Chapter \ref{chapter:david}.
+
+Other common methods include bayesian topic models and sentence clustering to find aligned sentences and the most important points within those sentences \autocite*{text-summarization-techniques}.
+
+\subsection{Indicator Representation}\label{intro:sec:indicator-representation}
+
+Indicator representations do not try to find topics; rather they attempt to find a representation that allows sentences to be ranked by their perceived importance.
+One implementation uses a graph based approach where the sentences are nodes, and edges between nodes represent the similarity between two sentences.
+Using these graphs, features of sentences can be determined and used to rank them.
+This type of implementation is discussed further in Chapter \ref{chapter:kennan}.
+
+Another indicator approach is to extract features from a given sentence and formulate it as a classification problem as to whether or not a sentence should be included in the extracted summary \autocite*{text-summarization-techniques}.
+
+\section{Datasets}\label{intro:sec:datasets}
+
+Two datasets were used within this survey of extractive summarization. One is used for single document summarization and the other is used for multi-document summarization.
+
+\subsection{CNN/Daily Mail Dataset}\label{intro:sec:datasets:cnn-dailymail}
+
+The CNN/Daily Mail dataset is the primary dataset used in single document summarization. This dataset combines news articles from both CNN and Daily Mail. There are 287,226 training documents, 11,490 testing documents, and 13,368 validation documents. The summaries within this dataset are all human generated. The average document's original text length is 781 tokens and the average summary length is 3.75 sentences or 56 tokens \autocite{dataset-cnn}.
+
+\subsection{Multi-News Dataset}\label{intro:sec:datasets:multi-news}
+
+The Multi-News dataset is the primary dataset used for multi-document summarization. All of the documents originate from the site newser.com and has human generated summaries. The number of source documents range from $2 - 10$ for each summary with $50\%$ having either $2,3, \text{ or } 4$ source documents. There are 44,972 training documents, 5,622 test documents, and 5,622 validation documents. This dataset has a higher average document size at 2103 tokens with an average summary length of 9.97 sentences or 263 tokens \autocite{dataset-multinews}.
+
+\end{document}

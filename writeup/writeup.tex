@@ -1,0 +1,72 @@
+\documentclass[11pt]{report}
+\usepackage{fullpage}
+\usepackage[utf8]{inputenc}
+\usepackage[T1]{fontenc}
+% \usepackage{newtxtext}
+\usepackage{microtype}
+\usepackage{hyperref}
+\usepackage{amssymb}
+\usepackage{amsfonts}
+\usepackage{float}
+\usepackage{amsmath}
+\usepackage{amsthm}
+\usepackage{graphicx}
+\usepackage{wrapfig}
+\usepackage{lipsum}
+\usepackage{titling}
+\usepackage{authblk}
+\usepackage{subfiles}
+\usepackage{subcaption}
+\usepackage{algorithm2e}
+\usepackage{multirow}
+\usepackage{soul}
+\usepackage[table,xcdraw]{xcolor}
+% use \say{stuff} for quotations
+\usepackage{dirtytalk}
+% setup automatic bibliography generation
+\usepackage[backend=bibtex,style=ieee]{biblatex}
+
+\newcommand\MyBox[2]{
+  \fbox{\lower0.75cm
+    \vbox to 1.7cm{\vfil
+      \hbox to 1.7cm{\hfil\parbox{1.4cm}{#1\\#2}\hfil}
+      \vfil}%
+  }%
+}
+\bibliography{citations}
+
+\graphicspath{{images/}}
+\title{Extractive Text Summarization:\\A Technical Survey and Comparison}
+\author[1]{Kennan LeJeune}
+\author[1]{David Blincoe}
+\author[1]{Sam Jenkins}
+\affil[1]{\textit{Department of Computer and Data Sciences\\Case Western Reserve University}}
+\date{December 12, 2020}
+
+\begin{document}
+\maketitle
+\begin{abstract}
+  Extractive summarization, unlike abstractive summarization, involves summarizing documents by reusing portions
+  of the original documents to overcome some of the obstacles associated with the NLG pipeline in
+  abstractive summary generation.
+
+  In this survey, we implement and compare a variety of
+  extractive summarization techniques \autocite{brief-summarization-survey, text-summarization-techniques} including frequency-based, graph-based,
+  and latent semantic analysis approaches. We demonstrate that all approach areas are capable of achieving strong
+  results on both single and multiple document summarization using the
+  CNN Dailymail \autocite*[]{dataset-cnn} and MultiNews \autocite*[]{dataset-multinews}
+  datasets respectively, and analyze
+  cases where the approaches perform particularly well or poorly. Finally, we implement and test
+  new extensions to each set of
+  approaches and examine the effectiveness of the extension in the context of relevant literature.
+\end{abstract}
+\tableofcontents{}
+\subfile{chapters/introduction.tex}
+\subfile{chapters/kennan.tex}
+\subfile{chapters/david.tex}
+\subfile{chapters/sam.tex}
+\subfile{chapters/group.tex}
+\subfile{chapters/appendix.tex}
+\newpage
+\printbibliography{}
+\end{document}

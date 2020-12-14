@@ -1,0 +1,111 @@
+\documentclass[../writeup.tex]{subfiles}
+
+\begin{document}
+\chapter{Comparison and Analysis}\label{chapter:group}
+% cite stuff using \autocite{label}, not \cite, for example
+% \autocite*{brief-summarization-survey}
+
+% label sections with \label{ch:sec:sectionName}
+% and figures with \label{ch:fig:figName},
+% equations with \label{ch:eq:eqName}, etc.
+% reference labeled stuff with \ref{ch:sec:sectionLabel} to automatically update numbers
+
+% to display something from the images/ directory
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=0.75\textwidth]{image.file}
+%   \caption{your caption here}
+%   \label{ch:fig:labelName}
+% \end{figure}
+\section{Introduction}\label{group:sec:intro}
+In order to compare the performance of our algorithms, we used the ROUGE metric to generate F1 scores, Precision and Recall scores for our models on the CNN Dailymail and MultiNews datasets.
+We generated summaries of length 3 on the CNN Dailymail set, and summaries of length 10 on the MultiNews set, in order to match the average length of the human generated summaries for those sets.
+
+We also include a baseline summarizer for the sake of comparison, which simply outputs the first $k$ sentences of the document, or the first $\frac{k}{n}$ sentences of each document for a cluster of $n$ documents for MultiNews.
+For the purpose of comparison, we will focus mainly on the ROUGE-1 scores of our algorithms.
+This is simply due to the fact that in the task of extractive summarization, longer substrings are unlikely to compare favorably to human summaries, due to the fact that there are so many different ways to condense and restate the same information.
+Therefore, simply looking at whether the generated summaries contain the same terms as the human summaries is a better indicator of how well they summarize the input document.
+
+The algorithms that we will be comparing are the Continuous LexRank, SumBasicExtended, Similar Filtering (LSA), and the baseline summarizer. The full scores of our summarizers can be found in section \ref{chapter:results}.
+Below are tables showing the performances of our algorithms on the two datasets.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \hline
+        Summarizer              & f-score                       & p-score                       & r-score                       \\
+        \hline
+        Baseline                & \cellcolor[HTML]{F8FF00}0.354 & \cellcolor[HTML]{F8FF00}0.303 & 0.467                         \\
+        SumBasicExtended        & 0.317                         & 0.252                         & \cellcolor[HTML]{F8FF00}0.468 \\
+        Penalized LexRanx       & 0.306                         & 0.277                         & 0.381                         \\
+        Similar Filtering (LSA) & 0.303                         & 0.252                         & 0.420                         \\
+        \hline
+    \end{tabular}
+
+    \caption{ROUGE-1 scores of algorithms on CNN Dailymail, 3 sentences}
+    \label{group:table:cnn_compare}
+\end{table}
+
+As we can see from the table above, the baseline summarizer has outperformed all of our algorithms on the CNN Dailymail dataset.
+However, this is not an entirely unexpected result.
+Since the CNN Dailymail dataset is constructed for single document summarization, naive strategies will tend to work well.
+Additionally, it may be that the baseline summarizer is uniquely suited for the task of summarizing documents from this dataset, simply due to the nature of news articles.
+In general, news articles are meant to be attention grabbing and make the reader want to continue reading, so it makes sense that the information found in news articles is likely to be frontloaded.
+Given this fact, it is unsurprising that outputting the first $k$ sentences of the article therefore gives a decent summarization of the article as a whole.
+
+Concerning just the algorithms that we implemented, it appears that SumBasicExtended had the highest score on this dataset.
+This could be due to the fact that SumBasicExtended uses positional information, while Continuous LexRank and Similar Filtering do not.
+This would seem to be a good argument for the idea that positional information is a good indicator for terms that appear in human generated summaries, and that frequency information is not enough on its own.
+Additionally, the selection strategy for selecting which sentences go into the summary may have an impact on the ROUGE score of the summary.
+Both Continuous LexRank and Similar Filtering use a greedy approach and select the highest scoring sentences, while SumBasicExtended takes an optimization approach to ensure that the highest score summary is found.
+
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{lrrr}
+        \hline
+        Summarizer              & f-score                       & p-score                       & r-score                       \\
+        \hline
+        Baseline                & 0.266                         & 0.432                         & 0.212                         \\
+        SumBasicExtended        & 0.339                         & 0.275                         & \cellcolor[HTML]{F8FF00}0.475 \\
+        Penalized LexRank       & \cellcolor[HTML]{F8FF00}0.353 & \cellcolor[HTML]{F8FF00}0.333 & 0.411                         \\
+        Similar Filtering (LSA) & 0.298                         & 0.407                         & 0.259                         \\
+        \hline
+    \end{tabular}
+
+    \caption{ROUGE-1 scores of algorithms on MultiNews, 10 sentences}
+    \label{group:table:multi_compare}
+\end{table}
+Here we can see that the relative performance of the baseline summarizer has dropped down significantly.
+For this dataset, we can see that Continuous LexRank now has the highest F1 score.
+It appears that Penalized LexRank performed comparatively better on the MultiNews dataset than on the CNN Dailymail.
+This may be due to the fact that LexRank implements a function to avoid adding noisy sentences from less-related documents in the cluster.
+Additionally, the penalty term for documents in the same cluster makes it more likely for the summary to include sentences from multiple documents, which makes it more likely to cover information that is relevant to the overall topic of the cluster, that may not be covered by sentences in a single document.
+Combined, these factors would bump up the relevancy of the sentences in the summary to the cluster topic, which could improve its score so that it performs better than SumBasicExtended despite not including positional information.
+
+However, to assume that just because one algorithm scored higher than another means that it generated a better summary would be a mistake.
+Unfortunately, the task of scoring automatically generated summaries quantitatively is almost as difficult as generating the summaries themselves.
+Both quantitative and qualitative analysis is needed in order to fully understand the performance of the algorithms.
+To that end, we have also included the generated summaries of articles in the CNN Dailymail and MultiNews sets in order to compare them qualitatively.
+The full summaries can be found in section \ref{chapter:summaries}.
+
+First, we compared the generated summaries on the first article in the CNN Dailymail set \ref{summaries:sec:cnn}. Looking at these produced summaries
+we determined that the summary produced by SumBasicExtended best encapsulated the article \ref{appendix:fig:summaries:sumbasic_cnn}. This summary references the
+main problem posed in the document, extended information about the problem, and finally a resolution to this problem. The other summaries generated address some of
+these points, but neither the Similar Filtering \ref{appendix:fig:summaries:filter_cnn} or LexRank \ref{appendix:fig:summaries:lexrank_cnn} summaries were able to
+give as comprehensive overviews of the document.
+
+Next, we examined the summaries of the first cluster of documents in the MultiNews set \ref{summaries:sec:multi}. The summary that is produced for the selected
+document is much longer than the CNN Dailymail article and it summarized information from 3 separate film reviews of \say{Alien: Covenant}. As for the CNN Dailymail summary,
+we are choosing the SumBasicExtended summary \ref{appendix:fig:summaries:sumbasic_multi}. This generated summary was able to piece together the sentences of each of the $3$ source documents
+in such a way that no information was repeated and the chronological order of the sentences is upheld. The other two summaries fail to accomplish this goal and will reference the beginning of one
+source document midway through the summary. These lead to confusing summaries that do not read fluently.
+
+In conclusion, we have explored the performance of our algorithms on the different datasets and offered explanations as to why certain algorithms performed better in certain situations.
+Overall, we concluded that the SumBasicExtended algorithm produced the most coherent summaries, and was best able to encapsuate the information present in the input documents.
+This speaks to the importance of positional information when it comes to relating terms to the meaning of a document, and shows that positional information is a powerful feature to indicate whether a term should appear in a summary or not.
+Additionally, we found that qualitative metrics of analysis were not enough to fully analyze the generated summaries, simply due to the sheer number of different ways to state the same information, and the fact that human generated summaries of documents
+are more likely to include certain meta information that would not appear in the input text, such as author names or article titles.
+
+
+\end{document}

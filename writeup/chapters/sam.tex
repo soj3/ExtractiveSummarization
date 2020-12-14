@@ -1,0 +1,413 @@
+\documentclass[../writeup.tex]{subfiles}
+
+
+\begin{document}
+\chapter{Frequency Methods: Sam Jenkins}\label{chapter:sam}
+% cite stuff using \autocite{label}, not \cite, for example
+% \autocite*{brief-summarization-survey}
+
+% label sections with \label{ch:sec:sectionName}
+% and figures with \label{ch:fig:figName},
+% equations with \label{ch:eq:eqName}, etc.
+% reference labeled stuff with \ref{ch:sec:sectionLabel} to automatically update numbers
+
+% to display something from the images/ directory
+% \begin{figure}[h]
+%   \centering
+%   \includegraphics[width=0.75\textwidth]{image.file}
+%   \caption{your caption here}
+%   \label{ch:fig:labelName}
+% \end{figure}
+\section{Introduction}\label{sam:sec:intro}
+Another approach to extractive summarization is to assign importance to words based on the frequency of their usage.
+The motivation behind this approach is simple: words that are used more frequently are likely to be more representative of the semantic meaning of the document than those that are used infrequently.
+
+In this section, we will explore a simple frequency based algorithm, known as SumBasic, as well as an extension to SumBasic which incorporates positional information as well.
+Additionally, we will consider a more general problem concerning multi-document summarization: how to group documents based on their topics.
+We will describe a simple implementation of a clustering algorithm known as CIDR and analyze its performance on the MultiNews dataset.
+\section{SumBasic}\label{sam:sec:sum_basic}
+SumBasic\autocite*[]{sumbasic} is a simple extractive summarization algorithm designed to focus exclusively on the frequency information of terms in the document, in order to isolate the importance of frequency on generating informative summaries.
+SumBasic scores words according to the frequency with which they appear in the input, and uses a greedy approach to select sentences containing those words until a maximum summary length is reached.
+Despite its simplicity, SumBasic's performance compares surprisingly well to more sophisticated approaches.
+This highlights the relationship between term frequency and document semantics, and shows that frequency is a strong indicator for words appearing in a human generated summary of the same text.
+The steps of SumBasic are as follows:
+\begin{enumerate}
+    \item Calculate the probability distribution for each word $w_i$ in the input as:
+          \begin{equation}\label{sam:eq:word_prob}
+              p(w_i) = \frac{n}{N}
+          \end{equation}
+          where $n$ is the number of times $w_i$ appears in the input and $N$ is the total number of tokens.
+    \item Assign every sentence a weight equal to the average probability of the words in the sentence, given by:
+          \begin{equation}\label{sam:eq:sum_basic_sentence_weight}
+              weight(S_j) = \sum_{w_i \in S_j} \frac{p(w_i)}{|\{w_i | w_i \in S_j\}|}
+          \end{equation}
+    \item Select the word with the highest $p(w_i)$, and select the sentence containing that word with the highest weight.
+    \item Update the probability of each word in the selected sentence as:
+          \begin{equation}\label{sam:eq:sum_basic_weight_update}
+              p_{new}(w_i) = p_{old}(w_i) \cdot p_{old}(w_i)
+          \end{equation}
+    \item Return to step 2 until the desired summary length has been reached.
+\end{enumerate}
+
+Step 4 is a key step to generating a reasonable summary, and it has three benefits: firstly, it gives the summary sensitivity to context.
+This is because the question of what information should be included in the summary changes based on what is already in the summary.
+Intuitively, $p_{old}(w_i)$ represents the probability that a word will appear in the summary once, while $p_{new}(w_i)$ represents the probability that the word will appear in the summary twice.
+Secondly, this update step allows words with a low initial probability a chance to appear in the summary, because they will have a relatively higher impact on the weight of subsequent sentences.
+This is important because sometimes important words can appear with low probability; for example, in some articles about film reviews, the full name of one of the actors appeared infrequently, but the full name is important information if the actor has a common surname.
+Thirdly, this update step helps avoid redundancy and repetition in the summary.\autocite*[]{sumbasic} Based on the summaries generated, this step seems sufficient on its own to prevent sentences appearing more than once in the summary.
+
+One limitation of SumBasic is that very common words such as "the", "I", "a", etc. appear with very high frequency in English, while conveying very little semantic information.
+In order to prevent these words from skewing the weight of sentences unfairly, the nltk stopwords list is used to remove them from sentences before word probability is calculated.
+Additionally, other tokens such as punctuation and symbols like "@" or "\$" are removed from the text during the cleaning step.
+
+Below is an example of a human generated summary of an article, along with the summary output by SumBasic.
+\begin{figure}[h]
+    \centering
+    \begin{subfigure}{.5\textwidth}
+        \centering
+        {\small
+            Experts question if packed out planes are putting passengers at risk.
+            U.S consumer advisory group says minimum space must be stipulated.
+            Safety tests conducted on planes with more leg room than airlines offer.}
+        \caption{Human generated summary}
+        \label{sam:fig:humman_cnn_summary}
+    \end{subfigure}%
+    \begin{subfigure}{0.5\textwidth}
+        \centering
+        {\small
+            Many economy seats on United Airlines have 30 inches of room, while some airlines offer as little as 28 inches.
+            Tests conducted by the FAA use planes with a 31 inch pitch, a standard which on some airlines has decreased.
+            They say that the shrinking space on aeroplanes is not only uncomfortable - its putting our health and safety in danger.}
+        \caption{SumBasic generated summary}
+        \label{sam:fig:basic_cnn_summary}
+    \end{subfigure}
+    \caption{Comparison of summaries generated based on CNN Dailymail article}
+    \label{sam:fig:basic_summary_comparison}
+\end{figure}
+
+As we can see, the summary generated by SumBasic is somewhat more verbose than the human summary, but this is to be expected when using sentences from the input text.
+More importantly, the three pieces of information present in the human summary (that airlines have decreased the amount of space passengers get, that this decrease may impact safety, and that the changes are being tested by a US agency) are all also present in the SumBasic summary.
+Therefore it would seem that frequency is a good indicator of what information should be included in the summary.
+
+\section{SumBasicExtended}\label{sam:sec:sum_basic_extended}
+As we have seen, frequency information alone can do surprisingly well when it comes to generating a rough summary of a document.
+However, there are many other sources of information that may help inform the summarizer which sentences should be included in the summary.
+Of particular interest is positional information.
+Many studies have shown that the position of a sentence is a good indicator of whether or not that sentence should appear in the summary.
+In fact, simply outputting the first $k$ sentences of a document for some $k$ has generally good results.\autocite*[]{sumbasic-extended}
+To that end, we will explore a model that combines positional information with frequency information in order to see how that impacts performance.
+
+This model, which we will refer to as SumBasicExtended in this paper, is primarily meant for multi-document summarization, but can be applied to single document summarization as well.
+In multi-document summarization, documents are placed in clusters based on their similarity to the content of other documents in that cluster.
+Clustering methods and their performance will be explored further in section \ref{sam:sec:clustering}.
+In order to capture positional information. a score is assigned to each term based on its position in the document that it appears in, with a lower score indicating a better position.
+A score of $0$ is assigned to the first word, and a score of $1$ is assigned to the last word in the document.
+This score is then averaged over the number of times that the term appears in the document cluster.
+In order to combine the positional information with the frequency information, the scores were combined as follows:
+\begin{equation}\label{sam:eq:extended_summary_score}
+    score(w_i) = BIAS \cdot (1 - position(w_i)) + (1-BIAS) \cdot freq(w_i)
+\end{equation}
+
+Where $position(w_i)$ is the average position of a word, $freq(w_i)$ is the probability of a word based on its frequency as described above, and $BIAS$ is a hyperparameter representing the relative importance attached to the positional or frequency information, respectively.
+Because a lower score for $position(w_i)$ is better, the score is inverted so that the overall score of words should be maximized.
+According to experimentation in the paper that the SumBasicExtended model was based on, a $BIAS$ term of $0.5$ produced better results, so that value was used to generate our results.\autocite*[]{sumbasic-extended}
+
+A further difference between SumBasic and SumBasicExtended is the method by which a summary is selected.
+Rather than greedily selecting sentences until the summary length is reached, SumBasicExtended instead assigns scores to summaries, and then tries to find the best summary.
+Summaries are scored by taking the sum of the scores of each word, but only the first time that it appears in the summary.
+This helps prevent redundancy in the output summary. Then the best summary is selected using the algorithm below\autocite*[]{sumbasic-extended}:
+
+\begin{algorithm}[H]
+    \KwIn{A list of $Sentences$ and scores for each term in the $Sentences$}
+    \KwIn{A summary length $maxlength$}
+    \KwIn{A maximum $stacksize$}
+    \KwOut{The best scoring $solution$}
+    Define a $solution$ as a list of sentence IDs \\
+    Define $stack[0\ldots maxlength]$ as a list of priority queues, with each queue having a size of $maxsize$ \;
+    Initialize $stack[0]$ to a $solution$ of length 0 \;
+    \For{$i \leftarrow 0$ \KwTo{$maxlength - 1$}}{
+        \ForEach{$sol \in stack[i]$}{
+            \ForEach{$s \in Sentences$}{
+                $newsol = sol \cup {s}$\;
+                $score =$ score of $newsol$ counting each term once\;
+                Insert $(score, newsol)$ into queue $stack[i+1]$, and prune to length $stacksize$\;
+
+            }
+        }
+    }
+    Return max scoring solution in $stack[maxlength]$
+
+    \caption{SumBasicExtended summary selection}
+    \label{sam:fig:extended_algorithm}
+\end{algorithm}
+
+This hyperparameter of $stacksize$ prevents the size of the each queue from growing exponentially, as only the top $stacksize$ potential solutions are kept.
+For our experiments, a $stacksize$ of $20$ was used with a $maxlength$ of $3$ sentences.
+
+We also compared the summaries generated by a human, by SumBasic, and by SumBasicExtended on a cluster in the MultiNews dataset.
+Due to the larger size of these summaries, these figures appear in section \ref{sam:sec:summary_comparison}
+We can see that there are certain elements of the human summary that do not appear in the generated summaries; namely, that the human summary includes certain meta-document statements such as aligning sentences with the authors of the document that they were contained in.
+However, this is less a failure of the models and more a problem with extractive summarization as a whole, since these sentences would not be likely to appear within the input document.
+Other than that, the generated summaries both appear fairly similar, and a lot of the same sentences appear in both of the summaries.
+However, the SumBasicExtended summary seems to have captured more sentences from the negative reviews of the movie ("Before chewing over the more predictable parts..." and "It barely showed the infamous beasties..." vs "Unfortunately...the writers don't do much with it).
+It also places those sentences earlier in the summary, indicating a higher score.
+This shows that the SumBasicExtended model was able to summarize more elements of the input documents (i.e. the mixed responses to the film) than the SumBasic summary, which only captured the generally positive reviews.
+This is not surprising, given that there were more positive reviews than negative ones, so the purely frequency based approach of SumBasic would be more likely to include sentences from those articles.
+More in-depth quantitative analysis comparing the two models will be described in section \ref{sam:sec:results:sum_basic_vs_extended}
+
+\section{Clustering and CIDR}\label{sam:sec:clustering}
+A topic that was frequently encountered when reading papers relating to multi-document summarization was that of topic detection: what is the best way to group a set of documents so that documents on similar topics are grouped together.
+There are many different approaches to topic detection, each with advantages and disadvantages.
+I felt that a full analysis of the different types of topic detection was somewhat outside the scope of this paper, so I decided to focus on one topic detection algorithm, called CIDR.
+CIDR is an online, single-pass clustering algorithm with an emphasis on performance.\autocite*[]{cidr-clustering}
+CIDR performs the following steps for each document:
+\begin{enumerate}
+    \item Represent the document as a vector of TF*IDF scores of the words in the document.
+    \item Compare the TF*IDF vector of the document by taking its dot product with the centroid of that cluster. Assign the document to the cluster with the highest similarity, or, if the similarity is below a predetermined cutoff threshold for every cluster, create a new cluster containing that document.
+    \item Update the centroid of the cluster the document was added to.
+    \item Repeat until no more documents are available.
+\end{enumerate}
+
+There are a couple of terms here that need to be explained.
+First, the TF*IDF score is a metric used frequently in information retrieval, and stands for "term frequency * inverse document frequency".
+The are several ways to calculate the TF*IDF score of a term. For this implementation, we chose to use the logarithmically scaled version.
+The calculation for the TF*IDF score of a term is then given by:
+\begin{equation}\label{sam:eq:tf}
+    tf(t, d) = log(1+f_{t, d})
+\end{equation}
+\begin{equation}\label{sam:eq:idf}
+    idf(t, D) = log \frac{N}{1 + |\{d \in D : t \in d\}|}
+\end{equation}
+\begin{equation}\label{sam:eq:tf_idf}
+    tfidf(t, d, D) = tf(t, d) * idf(t, D)
+\end{equation}
+
+In the above, $t$ is the term, $d$ is the document, and $D$ is the set of all documents.
+The 1 added to the denominator of the IDF score is so that terms with a frequency of 0 do not cause a divide by zero error.
+The goal of TF*IDF is to weight highly words that appear with high frequency in a few documents, thus weighting words that are likely to be important to the meaning of the documents highly, while giving words that appear frequently in general low weights.
+Next, a cluster is simply a list of documents that are similar to one another, and the centroid of a cluster is simply the average of the TF*IDF vectors of the documents in that cluster.
+
+There are several hyperparameters that impact the performance of this algorithm. First, a $DECAY\_THRESHOLD$ parameter is set to determine how many words to take from each document.
+When $DECAY\_THRESHOLD$ is set to $100$, for example, only the first 100 words of each document are analyzed. This captures the idea that most of the semantic meaning of a document is front-loaded, so we can safely ignore later words to increase performance.
+Next, words with an IDF score below $IDF\_THRESHOLD$ are ignored when calculating the TF*IDF vector or performing similarity comparisons.
+This is to remove words such as "the" or "and" that appear frequently in many documents without adding anything to their meaning.
+Next, a $KEEP\_WORDS$ parameter sets a maximum on the length of the centroid of a cluster.
+This helps to improve performance further, and studies have shown that clusters can usually be adequately described with just 3 or 4 terms, so not much information is lost by tossing out the other words.
+Finally, the $SIM\_THRESHOLD$ parameter determines the cutoff point for when new clusters should be made.
+The goal of these modifications is to improve the performance of the clustering algorithm without significantly impacting performance.
+We explore some of the results and comparisons of our implementation of CIDR with the MultiNews dataset in section \ref{sam:sec:results:CIDR}.
+
+
+\section{Results and Analysis}\label{sam:sec:results}
+\subsection{SumBasic and SumBasicExtended}\label{sam:sec:results:sum_basic_vs_extended}
+Below, we can see some of the results for our summary generation for SumBasic and SumBasicExtended for two different datasets: CNN Dailymail and MultiNews.
+CNN Dailymail is a collection of news articles for single document summarization, and MultiNews is a collection of clusters of news articles on the same topic for multi-document summarization.
+Each summary was generated with a summary length of $3$ sentences for CNN Dailymail, and $10$ sentences for MultiNews, which is approximately the average length of the human generated summaries. 
+
+In order to evaluate the summaries, we used ROUGE, which is a commonly used metric to evaluate automatically generated summaries.
+We used rouge-1, rouge-2, and rouge-l, which measure the overlap of unigrams, bigrams, and the longest common subsequence between the input summary and the reference summary, respectively.
+\begin{table}[h]
+    \caption{SumBasic Model on CNN Dailymail}
+    \begin{center}
+        \begin{tabular}{lrrr}
+            \hline
+            Rouge Metric & f-score & p-score & r-score \\
+            \hline
+            rouge-1      & 0.33    & 0.287   & 0.428   \\
+            rouge-2      & 0.131   & 0.114   & 0.171   \\
+            rouge-l      & 0.315   & 0.278   & 0.391   \\
+            \hline
+        \end{tabular}
+    \end{center}
+    \label{sam:fig:sum_basic_cnn}
+\end{table}%
+\begin{table}[h]
+    \caption{SumBasicExtended Model on CNN Dailymail}
+    \begin{center}
+        \begin{tabular}{lrrr}
+            \hline
+            Rouge Metric & f-score & p-score & r-score \\
+            \hline
+            rouge-1      & 0.317   & 0.252   & 0.468   \\
+            rouge-2      & 0.127   & 0.101   & 0.188   \\
+            rouge-l      & 0.306   & 0.252   & 0.42    \\
+            \hline
+        \end{tabular}
+    \end{center}
+    \label{sam:fig:extended_cnn}
+\end{table}
+
+The scores output by ROUGE are the F1 score, the precision and the recall of the summaries as compared to the human generated summaries.
+As we can see, both of our models have relatively low precision and high recall on the CNN Dailymail dataset.
+This is to be expected given the nature of extractive text summarization, as it is very likely that sentences from the input document would be represented more concisely by the human generated summary.
+As the F1 score is the harmonic mean of these two values, it seems a fair metric by which to compare our two models.
+As can be seen on the table, the SumBasicExtended model outperforms the SumBasic model in terms of its F1 score.
+Interestingly, the SumBasicExtended model had comparatively higher recall, while SumBasic had comparatively higher precision.
+This means that the SumBasic model was more likely to include a sentence in the summary only when it contained terms that were actually in the summary,
+while the SumBasicExtended model was more likely to include terms in general, which thus correlates to a higher number of correct terms showing up in the summary, but a lower overall proportion of correct terms to incorrect terms.
+
+In some ways it is difficult to use these scores to evaluate the accuracy of automatically generated summaries, due to the fact that human summaries are likely to compress and reword sentences in ways that are not present in the input text.
+This means that various artifacts may appear in the automatically generated summary that skew the score downwards, despite the summary containing much of the semantic information of the input document.
+A combination of qualitative and quantitative analysis, therefore, seems appropriate, which can be found in section \ref{sam:sec:sum_basic_extended}
+
+\begin{table}[h]
+    \caption{SumBasic Model on MultiNews}
+    \begin{center}
+        \begin{tabular}{lrrr}
+            \hline
+            Rouge Metric & f-score & p-score & r-score \\
+            \hline
+            rouge-1      & 0.354   & 0.327   & 0.417   \\
+            rouge-2      & 0.107   & 0.098   & 0.126   \\
+            rouge-l      & 0.286   & 0.269   & 0.321   \\
+            \hline
+        \end{tabular}
+    \end{center}
+    \label{sam:fig:sum_basic_multi}
+\end{table}%
+\begin{table}[h]
+    \caption{SumBasicExtended Model on MultiNews}
+    \begin{center}
+        \begin{tabular}{lrrr}
+            \hline
+            Rouge Metric & f-score & p-score & r-score \\
+            \hline
+            rouge-1      & 0.339   & 0.275   & 0.475   \\
+            rouge-2      & 0.107   & 0.087   & 0.15  \\
+            rouge-l      & 0.278   & 0.234   & 0.36s   \\
+            \hline
+        \end{tabular}
+    \end{center}
+    \label{sam:fig:extended_multi}
+\end{table}
+
+Above, we can see the results of our two models on the MultiNews dataset.
+Again, we can see that the SumBasic model has outperformed SumBasicExtended in both the F1 score and the precision.
+It is possible that this is due to the fact that frequency is a better indicator of term importance than position is for these news articles;
+however, we believe that it is more likely the presence of non-textual artifacts and meta-statements in the human summary that is skewing the scores of SumBasicExtended downwards, rather than the fact that it is producing worse summaries.
+In fact, it is our belief that the summaries produced by SumBasicExtended are qualitatively better than those produced by SumBasic.
+Again, this goes to show how difficult a problem it is to measure the accuracy of automatically generated summaries. A further discussion of the qualitative comparison of the summaries generated by these models on MultiNews can be found in section \ref{sam:sec:sum_basic_extended}.
+
+\subsection{CIDR}\label{sam:sec:results:CIDR}
+In order to evaluate our implementation of CIDR, we ran CIDR on the documents of MultiNews, and compared the results to the annotated clusters.
+We first generate the confusion matrix comparing the labels of CIDR and MultiNews, where the labels are the ID of the cluster that each document was assigned to.
+We generate a score for each unique pair of documents, evaluating whether they were grouped the same way in CIDR versus MultiNews.
+
+\begin{table}[h]
+    \centering
+    \begin{tabular}{c >{\bfseries}r @{\hspace{0.7em}}c @{\hspace{0.4em}}c @{\hspace{0.7em}}l}
+        \multirow{10}{*}{\parbox{1.1cm}{\bfseries\raggedleft Actual                                                    \\ value}} &
+         & \multicolumn{2}{c}{\bfseries Prediction outcome} &                                                          \\
+         &                                                  & \bfseries p      & \bfseries n         & \bfseries total \\
+         & p$'$                                             & \MyBox{TP}{1305} & \MyBox{FN}{1765}    & P$'$            \\[2.4em]
+         & n$'$                                             & \MyBox{FP}{1681} & \MyBox{TN}{3838627} & N$'$            \\
+         & total                                            & P                & N                   &
+    \end{tabular}
+    \caption{Confusion matrix of CIDR vs MultiNews}
+    \label{sam:sec:results:CIDR:confusion}
+\end{table}
+
+These values were generated with the following hyperparameters:
+$$DECAY\_THRESHOLD = 100$$
+$$IDF\_THRESHOLD = 3$$
+$$KEEP\_WORDS = 10$$
+$$SIM\_THRESHOLD = 50$$
+The one area where the parameters given in the paper is the $SIM\_THRESHOLD$ parameter.\autocite*[]{cidr-clustering}
+This is due to the fact that experimentally, our similarity values when comparing documents to clusters were on the order of 10-50, so a similarity threshold of 0.1 did not offer much granularity when it came to clustering the documents.
+
+As we can see, the number of true negatives is much higher than any of the other values.
+This is to be expected, because most of the clusters contained between 3 and 5 documents, so any given document is not very likely to be similar to any other given document in the set.
+Based on the values from our confusion matrix, we can calculate the accuracy of our clustering:
+$$ Acc = \frac{TP + TN}{TP + FP + TN + FN}$$
+$$ Acc = \frac{1305 + 3838627}{1305 + 1681 + 3838627 + 1765}$$
+$$ Acc = 0.9991$$
+Unfortunately, accuracy weights false positives and false negatives the same, and given the number of true negatives present in the dataset, this heavily skews the accuracy upwards.
+A better metric might be the $F_\beta$ score, which is the harmonic mean of the precision and recall, with a weight of $\beta$ used to penalize false negatives more harshly than false positives.
+This is due to the fact that in document summarization, it is sometimes worse to separate similar documents than it is to cluster dissimilar documents.\autocite*[]{information-retrieval} Using a $\beta$ of 5, we get:
+$$F_\beta = \frac{(\beta^2+1)PR}{\beta^2P + R} $$
+$$F_\beta = \frac{26 \cdot 0.4370 \cdot 0.4251}{25\cdot 0.4370 + 0.4251}$$
+$$F_\beta = 0.4255 $$
+
+This score tells us that our CIDR implementation is not very likely to cluster documents that the MultiNews dataset considers similar.
+However, this does not necessarily mean that CIDR is not a good clustering algorithm. One potential explanation for this difference is that when CIDR decides that a document is not similar to any of the current clusters, it creates a new cluster with that document as a seed.
+Therefore, the first time that CIDR and the MultiNews cluster disagrees on a document, we will then have different seeds for clusters from then on, which will skew the CIDR clusters further and further away from the MultiNews clusters.
+However, it could be that the validity of the clusters is just as good given a different metric of similarity. Indeed, looking at the clusters generated, many of the documents in the first cluster are related to movie reviews on the film Identity Thief, which is one of the clusters that MultiNews provided.
+
+An additional metric for evaluating clustering methods is cluster purity. The purity of a clustering is calculated by
+assigning each cluster the majority class of the documents in the cluster, and then counting the number of correctly assigned documents and dividing by the total number of documents.
+Our implementation outputs a purity value of:
+
+$$purity = 0.721$$
+
+This value represents the probability that documents in a cluster have the same class as the other documents in the cluster. The closer the purity to 1, the better. This purity value shows us that it is relatively likely that documents in the same cluster share the same topic. However, this can be somewhat misleading, as increasing the similarity threshold also increases the purity, since an assignment of each document to its own cluster would have a purity of 1. However, this relatively high purity combined with the qualitative analysis of the documents in the clusters leads us to conclude that the CIDR algorithm is a relatively good clustering algorithm, and that the sacrifices it makes for performance do not significantly negatively effect its accuracy.
+
+
+\section{Further Work}\label{sam:sec:further_work}
+There are many other experiments that could be performed with these algorithms. For example, one metric that we discussed that is commonly used to determine the importance of terms is the TF*IDF score.
+Perhaps the performance of both SumBasic and SumBasicExtended could be improved by replacing the frequency score with TF*IDF score of the terms. However, a new update step would be needed for SumBasic, as the intuitive squaring of the probabilities would sadly no longer work.
+
+Additionally, there are several hyperparameters that could be experimented with in order to find what produces the optimal results, for both SumBasicExtended and for CIDR. It is interesting to note that the values cited by the papers as giving optimal results were not necessarily producing optimal results in our experiments.
+This is likely due to the fact that we evaluated our models on different datasets for the sake of easing comparisons with the other algorithms discussed in this paper. 
+
+Furthermore, it may be interesting to try to include more information in the CIDR clustering algorithm rather than just the TF*IDF scores.
+CIDR already somewhat includes positional information, in that only the first $DECAY\_THRESOLD$ words are considered, but there are many other features that could be included that may be able to improve cluster accuracy, such as including the titles of documents. These are but of few of the avenues that could be explored in future research on frequency based models of extractive summarization.
+\section{Summary Comparisons}\label{sam:sec:summary_comparison}
+
+Below we can see generated summaries of an article reviewing the film Alien:Covenant, from the MultiNews dataset, with a summary length of 15. Some postprocessing was done to remove non-textual elements that were present in the original document, such as html for displaying a picture.
+\begin{figure}[h]
+    {\small A spaceship arrives on a distant planet that looks like a perfect new home for humans in Alien: Covenant.
+        But if you know anything about Alien movies, you'll know theres only terror in store.
+        Heres what critics are saying about the latest installment of the franchise, with director Ridley Scott of 1979s Alien returning: The filmmakers have finally managed to``dig the series out of its hole ,"Todd McCarthy puts it at the Hollywood Reporter.
+        He calls Alien: Covenant``the most satisfying entry in the six-films-and-counting franchise since the first two.''
+        Beautiful and gripping, it``feels vital"and is``keen to keep us on our toes right up to the concluding scene, which leaves the audience with such a great reveal that it makes you want to see the next installment tomorrow . ''
+        Peter Howell at the Toronto Star agrees this flick``ranks among the better chapters"of the franchise.
+        Scott``breaks new ground even while revisiting old concepts"and``brings back the visceral panic that fans expect . ''
+        Actors Katherine Waterston, Danny McBride, Billy Crudup, and Michael Fassbender—who delivers``a grand performance times two"as two separate robots—also deserve high praise, he writes.
+        The inclusion of Fassbenders David, from 2012s Prometheus, was an incredibly smart move, writes Joe Morgenstern at the Wall Street Journal.
+        But there was little else that impressed him. Theres just``nothing new"to this``gore fest ,"he writes.
+        He acknowledges, however, that``many Alien fans will come looking for something old, and thats in bloodily abundant supply . ''
+        Chris Klimek had his own issues with the film.
+        For example,``a religious subtext is introduced and then immediately abandoned ,"he writes at NPR.
+        But he, too, had to marvel at Fassbender, whose``existential rap session"provides the``freshest part of the movie . ''
+        Then again, Fassbenders David``is the only character in whom Scott seems truly interested ,"he writes.}
+    \caption{Human summary of Alien:Covenant reviews}
+\end{figure}
+
+\begin{figure}[h]
+    {\small Alien: Covenant: Film Review Michael Fassbender, Katherine Waterston and Billy Crudup lead the ensemble of Ridley Scotts second installment in the Alien prequel series.
+        After the Alien series looked as though it had hit the rocks creatively (not for the first time) with the last entry, Prometheus, five years ago, savvy old master Ridley Scott has resuscitated it, and then some, with Alien: Covenant, the most satisfying entry in the six-films-and-counting franchise since the first two.
+        Its a matter of record that Scott will turn 80 later this year, and Clint Eastwood will be 87 when he starts his new film; from the evidence on the screen , 80 may well be the new 50 where some top helmers are concerned, especially those who, like Scott and Eastwood, make a new film almost every year.
+        It won ’ t take you long to figure out who the “ Ripley ” character is here, for example, and the perilous planet narrative dates right back to the original Alien, and indeed to the dawn of sci-fi moviemaking.
+        It also helped to recruit a couple of very good writers, John Logan and Dante Harper, to dig the series out of its hole.
+        But, no, Walter, who sports an American, not British, accent, is an updated version of that all-purpose butler, factotum and technical wizard — a far friendlier iteration of the know-it-all computer Hal in 2001: A Space Odyssey.
+        Distinguishable from his supposedly new and improved relative by virtue of his long hair and British accent, this lone survivor of the previous voyage, who lives among the ruins of a great civilization wiped out by the aliens, gives Fassbender the delicious opportunity of a double performance.
+        Gripping through its full two hours and spiked with some real surprises, this beautifully made sci-fi thriller will immeasurably boost fan interest in the run of prequels which Scott has recently said will consist of at least two more films until the action catches up to the 1979 original.
+        This Fox release is a lock for major early summer box-office worldwide. No matter that these aliens have been around far longer than most of the viewers who will see this film opening weekend have been alive; this entry feels vital, freshly thought out and keen to keep us on our toes right up to the concluding scene, which leaves the audience with such a great reveal that it makes you want to see the next installment tomorrow.
+        The elegantly spare opening, in which a “ synthetic, ” Walter (Michael Fassbender), engages his “ father ” (an uncredited Guy Pearce) in a pointedly philosophical conversation, simply and effectively frames the thrust of the films central interest in human lifes origins and its prospects for survival.
+        And as in 2001, Alien: Covenant involves a long outer space voyage during which the 2,000 human passengers, along with 1,140 embryos, will linger in a deep-freeze sleep for several years while the humanoid plays watchdog.
+        Something happens that interrupts the journey and prompts the exploration of an unknown closer planet that looks to be every bit as inviting — until events prove that theory disastrously wrong.
+        Unfortunately, once this element is introduced, the writers dont do much with it, so it feels like a missed opportunity to engage in some pithy religion vs. science debate.}
+    \caption{SumBasic summary of Alien:Covenant reviews}
+\end{figure}
+
+\begin{figure}[h]
+    {\small Before chewing over the more predictable parts of Ridley Scott ’ s “ Alien: Covenant, ” let ’ s salute a really smart thing that Mr. Scott and his writers, John Logan and Dante Harper, have done with the latest edition of the “ Alien ” saga.
+        Alien: Covenant: Film Review Michael Fassbender, Katherine Waterston and Billy Crudup lead the ensemble of Ridley Scotts second installment in the Alien prequel series.
+        After the Alien series looked as though it had hit the rocks creatively (not for the first time) with the last entry, Prometheus, five years ago, savvy old master Ridley Scott has resuscitated it, and then some, with Alien: Covenant, the most satisfying entry in the six-films-and-counting franchise since the first two.
+        Gripping through its full two hours and spiked with some real surprises, this beautifully made sci-fi thriller will immeasurably boost fan interest in the run of prequels which Scott has recently said will consist of at least two more films until the action catches up to the 1979 original.
+        None comes to mind (Steven Spielberg made his first Indiana Jones adventure, Raiders of the Lost Ark, in 1981, two years after Alien was released).
+        Its a matter of record that Scott will turn 80 later this year, and Clint Eastwood will be 87 when he starts his new film; from the evidence on the screen , 80 may well be the new 50 where some top helmers are concerned, especially those who, like Scott and Eastwood, make a new film almost every year.
+        No matter that these aliens have been around far longer than most of the viewers who will see this film opening weekend have been alive; this entry feels vital, freshly thought out and keen to keep us on our toes right up to the concluding scene, which leaves the audience with such a great reveal that it makes you want to see the next installment tomorrow.
+        The elegantly spare opening, in which a “ synthetic, ” Walter (Michael Fassbender), engages his “ father ” (an uncredited Guy Pearce) in a pointedly philosophical conversation, simply and effectively frames the thrust of the films central interest in human lifes origins and its prospects for survival.
+        It barely showed the infamous beasties, choosing instead to batter senses with windy dialogue and events that seemed to betray basic elements of this decades-long saga.
+        Alien: Covenant brings back the visceral panic that fans expect from the franchise, along with the show-stopping title creatures: among them the face-hugger, the chest-burster and the canoe-headed xenomorph of artist H.R.
+        But, no, Walter, who sports an American, not British, accent, is an updated version of that all-purpose butler, factotum and technical wizard — a far friendlier iteration of the know-it-all computer Hal in 2001: A Space Odyssey.
+        The Covenant carries 2,000 passengers and 1,140 human embryos, all frozen in cryogenic deep sleep and with an emphasis on preserving couples and families as they make the years-long journey to a planet called Origae-6.
+        This couples-only orientation lends a fresh feel to this group of space travelers, and definitely cranks up the emotional distress quotient as partners start splitting open and giving birth to the wrong kind of offspring.
+        But as inviting as are the beautiful landscapes, mountains and lakes, theres trouble lurking in the magnificent flora and fauna and, given the particulars of this bloody franchise, it doesnt take long for humans to fall ill and start bursting with nasty and ferocious critters they never imagined could spring from their innards. }
+    \caption{SumBasicExtended summary of Alien:Covenant reviews}
+\end{figure}
+
+
+
+\end{document}
